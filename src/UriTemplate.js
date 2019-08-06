@@ -3,170 +3,194 @@
 module.exports = UriTemplate;
 
 
-var operatorOptions = {
+const operatorOptions = {
     "": {
-        "prefix": "",
-        "seperator": ",",
-        "assignment": false,
-        "assignEmpty": false,
-        "encode": percentEncode
+        prefix: "",
+        seperator: ",",
+        assignment: false,
+        assignEmpty: false,
+        encode: percentEncode
     },
     "+": {
-        "prefix": "",
-        "seperator": ",",
-        "assignment": false,
-        "assignEmpty": false,
-        "encode": encodeURI
+        prefix: "",
+        seperator: ",",
+        assignment: false,
+        assignEmpty: false,
+        encode: encodeURI
     },
     "#": {
-        "prefix": "#",
-        "seperator": ",",
-        "assignment": false,
-        "assignEmpty": false,
-        "encode": encodeURI
+        prefix: "#",
+        seperator: ",",
+        assignment: false,
+        assignEmpty: false,
+        encode: encodeURI
     },
     ".": {
-        "prefix": ".",
-        "seperator": ".",
-        "assignment": false,
-        "assignEmpty": false,
-        "encode": percentEncode
+        prefix: ".",
+        seperator: ".",
+        assignment: false,
+        assignEmpty: false,
+        encode: percentEncode
     },
     "/": {
-        "prefix": "/",
-        "seperator": "/",
-        "assignment": false,
-        "assignEmpty": false,
-        "encode": encodeURIComponent
+        prefix: "/",
+        seperator: "/",
+        assignment: false,
+        assignEmpty: false,
+        encode: encodeURIComponent
     },
     ";": {
-        "prefix": ";",
-        "seperator": ";",
-        "assignment": true,
-        "assignEmpty": false,
-        "encode": encodeURIComponent
+        prefix: ";",
+        seperator: ";",
+        assignment: true,
+        assignEmpty: false,
+        encode: encodeURIComponent
     },
     "?": {
-        "prefix": "?",
-        "seperator": "&",
-        "assignment": true,
-        "assignEmpty": true,
-        "encode": encodeURIComponent
+        prefix: "?",
+        seperator: "&",
+        assignment: true,
+        assignEmpty: true,
+        encode: encodeURIComponent
     },
     "&": {
-        "prefix": "&",
-        "seperator": "&",
-        "assignment": true,
-        "assignEmpty": true,
-        "encode": encodeURIComponent
+        prefix: "&",
+        seperator: "&",
+        assignment: true,
+        assignEmpty: true,
+        encode: encodeURIComponent
     }
-}; //operatorOptions
+}
 
-function percentEncode(value) {
-    /*
-	http://tools.ietf.org/html/rfc3986#section-2.3
-	*/
-    var unreserved = "-._~";
+/* http://tools.ietf.org/html/rfc6570#section-2.3 */
+function isUndefined(value) {
+    if (value === null) return true;
+    if (value === undefined) return true;
+    if (Array.isArray(value) && value.length === 0) return true;
 
-    if (isUndefined(value)) return '';
-
-    value = value.toString();
-
-    return Array.prototype.map.call(value, function (ch) {
-        var charCode = ch.charCodeAt(0);
-
-        if (charCode >= 0x30 && charCode <= 0x39) return ch;
-        if (charCode >= 0x41 && charCode <= 0x5a) return ch;
-        if (charCode >= 0x61 && charCode <= 0x7a) return ch;
-
-        if (~unreserved.indexOf(ch)) return ch;
-
-        return '%' + charCode.toString(16).toUpperCase();
-    }).join('');
-
-} //percentEncode
+    return false;
+}
 
 function isDefined(value) {
     return !isUndefined(value);
-} //isDefined
-function isUndefined(value) {
-    /*
-	http://tools.ietf.org/html/rfc6570#section-2.3
-	*/
-    if (value === null) return true;
-    if (value === undefined) return true;
-    if (Array.isArray(value)) {
-        if (value.length === 0) return true;
+}
+
+const unreserved = "-._~";
+
+
+function percentTransform(ch) {
+    var charCode = ch.charCodeAt(0);
+
+    if (charCode >= 0x30 && charCode <= 0x39) return ch;
+    if (charCode >= 0x41 && charCode <= 0x5a) return ch;
+    if (charCode >= 0x61 && charCode <= 0x7a) return ch;
+
+    if (~unreserved.indexOf(ch)) return ch;
+
+    return '%' + charCode.toString(16).toUpperCase();
+}
+
+function applyStringTransform(value, mapper) {
+    return value.split("")
+                .map(mapper)
+                .join('');
+}
+
+/* http://tools.ietf.org/html/rfc3986#section-2.3 */
+function percentEncode(value) {
+    if (isUndefined(value)) return '';
+    const string = value.toString()
+    return applyStringTransform(
+        string, percentTransform)
+}
+
+/**
+ * The operator characters equals ("="), comma (","), exclamation ("!"),
+ * at sign ("@"), and pipe ("|") are reserved for future extensions.
+ */
+function checkReserved(operator) {
+    if (operator && ~'=,!@|'.indexOf(operator)) {
+        throw new Error("operator '" + operator + "' is reserved for future extensions");
     }
+    return operator
+}
 
-    return false;
-} //isUndefined
+var reVariable = /^([\$_a-z][\$_a-z0-9]*)((?:\:[1-9][0-9]?[0-9]?[0-9]?)?)(\*?)$/i;
+
+function variableMapper(variable) {
+    var match = reVariable.exec(variable);
+    return {
+        name: match[1],
+        maxLength: match[2] && parseInt(match[2].substring(1), 10),
+        composite: !!match[3]
+    };
+}
 
 
-function UriTemplate(template) {
-    /*
-	http://tools.ietf.org/html/rfc6570#section-2.2
 
-	expression    =  "{" [ operator ] variable-list "}"
-	operator      =  op-level2 / op-level3 / op-reserve
-	op-level2     =  "+" / "#"
-	op-level3     =  "." / "/" / ";" / "?" / "&"
-	op-reserve    =  "=" / "," / "!" / "@" / "|"
-	*/
-    var reTemplate = /\{([\+#\.\/;\?&=\,!@\|]?)([A-Za-z0-9_\,\.\:\*]+?)\}/g;
-    var reVariable = /^([\$_a-z][\$_a-z0-9]*)((?:\:[1-9][0-9]?[0-9]?[0-9]?)?)(\*?)$/i;
-    var match;
-    var pieces = [];
-    var glues = [];
-    var offset = 0;
-    var pieceCount = 0;
+/**
+ *  http://tools.ietf.org/html/rfc6570#section-2.2
+ *	expression    =  "{" [ operator ] variable-list "}"
+ *	operator      =  op-level2 / op-level3 / op-reserve
+ *	op-level2     =  "+" / "#"
+ *	op-level3     =  "." / "/" / ";" / "?" / "&"
+ *	op-reserve    =  "=" / "," / "!" / "@" / "|"
+ */
+function preprocessTemplate(template) {
+    const reTemplate = /\{([\+#\.\/;\?&=\,!@\|]?)([A-Za-z0-9_\,\.\:\*]+?)\}/g;
 
-    while (!!(match = reTemplate.exec(template))) {
-        glues.push(template.substring(offset, match.index));
-        /*
-		The operator characters equals ("="), comma (","), exclamation ("!"),
-		at sign ("@"), and pipe ("|") are reserved for future extensions.
-		*/
-        if (match[1] && ~'=,!@|'.indexOf(match[1])) {
-            throw new Error("operator '" + match[1] + "' is reserved for future extensions");
-        }
+    const pieces = [];
+    const glues = [];
 
-        offset = match.index;
-        pieces.push({
-            operator: match[1],
-            variables: match[2].split(',').map(variableMapper)
-        });
-        offset += match[0].length;
-        pieceCount++;
-    }
+    let offset = 0;
+    let match;
 
-    function variableMapper(variable) {
-        var match = reVariable.exec(variable);
-        return {
-            name: match[1],
-            maxLength: match[2] && parseInt(match[2].substring(1), 10),
-            composite: !!match[3]
-        };
+    while (match = reTemplate.exec(template)) {
+        const prefix = template.substring(offset, match.index)
+        glues.push(prefix);
+        const operator  = checkReserved(match[1]);
+        const variables = match[2].split(',').map(variableMapper);
+        pieces.push({ operator, variables });
+        offset = match.index + match[0].length;
     }
 
     glues.push(template.substring(offset));
 
-    this.parse = function (str) {
+    return { pieces, glues }
+}
+
+function getSegmentsOffsets(str, glues) {
+    var offset = 0;
+    var offsets = [];
+
+    for (let i = 0, length = glues.length; i < length; i++) {
+        const glue = glues[i];
+        let index
+
+        if (i > 0 && glue === '') {
+            index = str.length;
+        } else {
+            index = str.indexOf(glue, offset);
+            if (index === -1) return false;
+        }
+        offsets.push(index);
+        offset = index + glue.length;
+    }
+
+    return offsets
+}
+
+
+
+function UriTemplate(template) {
+    const { pieces, glues } = preprocessTemplate(template)
+
+    function parse (str) {
+        const offsets = getSegmentsOffsets(str, glues)
+        if (!offsets) return false
+
         var data = {};
-        var offset = 0;
-        var offsets = [];
 
-        if (!glues.every(function (glue, glueIndex) {
-            var index;
-            if (glueIndex > 0 && glue === '') index = str.length;
-            else index = str.indexOf(glue, offset);
-
-            offset = index;
-            offsets.push(offset);
-            offset += glue.length;
-
-            return~ index;
-        })) return false;
 
         if (!pieces.every(function (piece, pieceIndex) {
             var options = operatorOptions[piece.operator];
@@ -208,9 +232,10 @@ function UriTemplate(template) {
         })) return false;
 
         return data;
-    }; //parse
+    }
 
-    this.stringify = function (data) {
+
+function stringify (data) {
         var str = '';
         data = data || {};
 
@@ -308,6 +333,9 @@ function UriTemplate(template) {
         })) return false;
 
         return str;
-    }; //stringify
+    };
 
+
+    this.parse = parse;
+    this.stringify = stringify;
 } //UriTemplate

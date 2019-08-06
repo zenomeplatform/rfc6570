@@ -181,6 +181,20 @@ function getSegmentsOffsets(str, glues) {
 }
 
 
+function getValuePart(str, pieceIndex, glues, offsets) {
+    const offsetBegin = offsets[pieceIndex] + glues[pieceIndex].length;
+    const offsetEnd = offsets[pieceIndex + 1];
+    const value = str.substring(offsetBegin, offsetEnd);
+
+    return value;
+}
+
+
+function startsWithConsume(string, prefix) {
+    if (!string.startsWith(prefix)) return false;
+    return string.slice(prefix.length)
+}
+
 
 function UriTemplate(template) {
     const { pieces, glues } = preprocessTemplate(template)
@@ -193,39 +207,30 @@ function UriTemplate(template) {
 
 
         if (!pieces.every(function (piece, pieceIndex) {
-            var options = operatorOptions[piece.operator];
-            var value, values;
-            var offsetBegin = offsets[pieceIndex] + glues[pieceIndex].length;
-            var offsetEnd = offsets[pieceIndex + 1];
+            const { prefix, seperator, assignment, assignEmpty } = operatorOptions[piece.operator];
 
-            value = str.substring(offsetBegin, offsetEnd);
+            let value = getValuePart(str, pieceIndex, glues, offsets)
             if (value.length === 0) return true;
-            if (value.substring(0, options.prefix.length) !== options.prefix) return false;
-            value = value.substring(options.prefix.length);
-            values = value.split(options.seperator);
+            if (!value.startsWith(prefix)) return false;
+            let values = value.slice(prefix.length).split(seperator);
 
-            if (!piece.variables.every(function (variable, variableIndex) {
-                var value = values[variableIndex];
-                var name;
+
+            for (let variableIndex in piece.variables) {
+                let variable = piece.variables[variableIndex];
+                let value    = values         [variableIndex];
 
                 if (value === undefined) return true;
-
-                name = variable.name;
-
-                if (options.assignment) {
-                    if (value.substring(0, name.length) !== name) return false;
-                    value = value.substring(name.length);
-                    if (value.length === 0 && options.assignEmpty) return false;
+                if (assignment) {
+                    value = startsWithConsume(value, variable.name)
+                    if (value === false) return false;
+                    if (value.length === 0 && assignEmpty) return false;
                     if (value.length > 0) {
-                        if (value[0] !== '=') return false;
-                        value = value.substring(1);
+                        value = startsWithConsume(value, "=")
+                        if (value === false) return false;
                     }
                 }
-                value = decodeURIComponent(value);
-                data[name] = value;
-
-                return true;
-            })) return false;
+                data[variable.name] = decodeURIComponent(value);
+            }
 
             return true;
 

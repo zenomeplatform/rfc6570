@@ -165,14 +165,15 @@ function getSegmentsOffsets(str, glues) {
 
     for (let i = 0, length = glues.length; i < length; i++) {
         const glue = glues[i];
-        let index
 
-        if (i > 0 && glue === '') {
-            index = str.length;
-        } else {
-            index = str.indexOf(glue, offset);
-            if (index === -1) throw new Error(null)
+        if (i === length - 1 && glue === '') {
+            offsets.push(str.length);
+            break;
         }
+
+        const index = str.indexOf(glue, offset);
+        if (index === -1) throw new Error(null)
+
         offsets.push(index);
         offset = index + glue.length;
     }
@@ -202,7 +203,6 @@ function UriTemplate(template) {
     function parse (str) {
         const data = {},  offsets = getSegmentsOffsets(str, glues)
 
-        
         pieces.forEach(function ({ operator, variables }, pieceIndex) {
             const { prefix, seperator, assignment, assignEmpty } = operatorOptions[operator];
 
@@ -318,8 +318,7 @@ function stringify (data = {}) {
 
             parts = parts.filter(isDefined);
             if (isDefined(parts)) {
-                str += options.prefix;
-                str += parts.join(options.seperator);
+                str += options.prefix + parts.join(options.seperator);
             }
 
             str += glues[pieceIndex + 1];

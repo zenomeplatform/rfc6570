@@ -297,45 +297,42 @@ function parse (str) {
 
 function stringify(data = {}) {
     const { pieces, glues } = this.data;
-    var str = glues[0];
+    return glues[0] + pieces.map((x,i) => processPart(x) + glues[i+1]).join("");
 
-    function processPart({ operator, variables }, pieceIndex) {
+    function processPart({ operator, variables }) {
         const o = operatorOptions[operator];
-        const parts = variables.map(procVariable).filter(isDefined);
-
-        function procVariable ({ name, composite, maxLength }) {
-            var value = data[name];
-            if (!isArray(value)) value = [value];
-            value = value.filter(isDefined);
-            if (isUndefined(value)) return null;
-
-            if (!composite) return processValue(value.map(mapper).join(','), name, o)
-
-            return value.map(function (value) {
-                if (typeof value !== 'object') {
-                    value = processVal(value, maxLength, o.encode)
-                    return processValue(value, name, o);
-                }
-                const mapper = ([key, val]) => key + '=' + processVal(val, maxLength, o.encode);
-                return Object.entries(value).map(mapper).join(o.seperator);
-            }).join(o.seperator);
-            
-
-            function mapper(value) {
-                if (typeof value !== 'object') return processVal(value, maxLength, o.encode);
-                const mapper = ([key, val]) => key + ',' + processVal(val, maxLength, o.encode);
-                return Object.entries(value).map(mapper).join(',');
-            }
-            
-        }
-
-        if (isDefined(parts)) {
-            str += o.prefix + parts.join(o.seperator);
-        }
-        str += glues[pieceIndex + 1];
+        const parts = variables.map(x => procVariable(x, o)).filter(isDefined);
+        if (!isDefined(parts)) return ""
+        return o.prefix + parts.join(o.seperator)
     }
-    pieces.forEach(processPart)
-    return str;
+
+    function procVariable ({ name, composite, maxLength }, o) {
+        var value = data[name];
+        if (!isArray(value)) value = [value];
+        value = value.filter(isDefined);
+        if (isUndefined(value)) return null;
+
+        if (!composite) return processValue(value.map(mapper).join(','), name, o)
+
+        return value.map(mapper2).join(o.seperator);
+        
+        function mapper2 (v) {
+            if (typeof v !== 'object') {
+                v = processVal(v, maxLength, o.encode)
+                return processValue(v, name, o);
+            }
+            const mapper = ([key, val]) => key + '=' + processVal(val, maxLength, o.encode);
+            return Object.entries(v).map(mapper).join(o.seperator);
+        }
+
+        function mapper(value) {
+            if (typeof value !== 'object') return processVal(value, maxLength, o.encode);
+            const mapper = ([key, val]) => key + ',' + processVal(val, maxLength, o.encode);
+            return Object.entries(value).map(mapper).join(',');
+        }
+        
+    }
+
 };
 
 Object.assign(UriTemplate, {UriTemplate, UriTemplateClass, Router})

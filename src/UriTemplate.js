@@ -171,7 +171,7 @@ function getSegmentsOffsets(str, glues) {
             index = str.length;
         } else {
             index = str.indexOf(glue, offset);
-            if (index === -1) return false;
+            if (index === -1) throw new Error(null)
         }
         offsets.push(index);
         offset = index + glue.length;
@@ -191,7 +191,7 @@ function getValuePart(str, pieceIndex, glues, offsets) {
 
 
 function startsWithConsume(string, prefix) {
-    if (!string.startsWith(prefix)) return false;
+    if (!string.startsWith(prefix)) throw new Error(null)
     return string.slice(prefix.length)
 }
 
@@ -200,40 +200,35 @@ function UriTemplate(template) {
     const { pieces, glues } = preprocessTemplate(template)
 
     function parse (str) {
-        const offsets = getSegmentsOffsets(str, glues)
-        if (!offsets) return false
+        const data = {},  offsets = getSegmentsOffsets(str, glues)
 
-        var data = {}
-
-        if (!pieces.every(function (piece, pieceIndex) {
-            const { prefix, seperator, assignment, assignEmpty } = operatorOptions[piece.operator];
+        
+        pieces.forEach(function ({ operator, variables }, pieceIndex) {
+            const { prefix, seperator, assignment, assignEmpty } = operatorOptions[operator];
 
             let value = getValuePart(str, pieceIndex, glues, offsets)
             if (value.length === 0) return true;
-            if (!value.startsWith(prefix)) return false;
-            const values = value.slice(prefix.length).split(seperator);
-            const variables = piece.variables;
+
+            value = startsWithConsume(value, prefix);
+            const values = value.split(seperator);
 
             for (let variableIndex in variables) {
                 let variable = variables[variableIndex];
                 let value    = values   [variableIndex];
+                if (value === undefined) break;
 
-                if (value === undefined) return true;
                 if (assignment) {
                     value = startsWithConsume(value, variable.name)
-                    if (value === false) return false;
-                    if (value.length === 0 && assignEmpty) return false;
+                    if (value.length === 0 && assignEmpty) throw new Error(null)
                     if (value.length > 0) {
                         value = startsWithConsume(value, "=")
-                        if (value === false) return false;
                     }
                 }
                 data[variable.name] = decodeURIComponent(value);
             }
 
-            return true;
 
-        })) return false;
+        })
 
         return data;
     }
@@ -340,6 +335,12 @@ function stringify (data) {
     };
 
 
-    this.parse = parse;
+    this.parse = function() {
+        try {
+            return parse.apply(this, arguments);
+        } catch (error) {
+            return false;
+        }
+    }
     this.stringify = stringify;
 } //UriTemplate

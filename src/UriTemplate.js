@@ -298,69 +298,54 @@ function stringify(data = {}) {
     var str = glues[0];
 
     function processPart(piece, pieceIndex) {
-        var options = operatorOptions[piece.operator];
+        const operator = piece.operator
         const variables = piece.variables;
+        var o = operatorOptions[operator];
 
-        const parts = variables.map(function (variable) {
-            const { name, composite, maxLength } = variable;
+        const parts = variables.map(procVariable).filter(isDefined);
+
+        function procVariable ({ name, composite, maxLength }) {
             var value = data[name];
             if (!isArray(value)) value = [value];
             value = value.filter(isDefined);
             if (isUndefined(value)) return null;
 
-            if (composite) {
-                return value.map(function (value) {
+            if (!composite) return processValue(value.map(mapper).join(','), name, o)
 
-                    if (typeof value !== 'object') {
-                        if (maxLength) value = value.substring(0, maxLength);
-                        value = options.encode(value);
-                        return processValue(value, name, options);
-                    }
-
-                    function mapper([ key, val ]) {
-                        if (maxLength) val = val.substring(0, maxLength);
-                        return key + '=' + options.encode(val);
-                    }
-
-                    return Object.entries(value).map(mapper).join(options.seperator);
-
-                }).join(options.seperator);
-            }
+            return value.map(function (value) {
+                if (typeof value !== 'object') {
+                    value = processVal(value, maxLength, o.encode)
+                    return processValue(value, name, o);
+                }
+                const mapper = ([key, val]) => key + '=' + processVal(val, maxLength, o.encode);
+                return Object.entries(value).map(mapper).join(o.seperator);
+            }).join(o.seperator);
+            
 
             function mapper(value) {
-                if (typeof value !== 'object') {
-                    if (maxLength) value = value.substring(0, maxLength);
-                    return options.encode(value);
-                }
-
-                function mapper([key, val]) {
-                    if (maxLength) val = val.substring(0, maxLength);
-                    return key + ',' + options.encode(val);
-                }
-
+                if (typeof value !== 'object') return processVal(value, maxLength, o.encode);
+                const mapper = ([key, val]) => key + ',' + processVal(val, maxLength, o.encode);
                 return Object.entries(value).map(mapper).join(',');
             }
-
-
-            value = value.map(mapper).join(',');
-            return processValue(value, name, options)
-        }).filter(isDefined);
-
-        if (isDefined(parts)) {
-            str += options.prefix + parts.join(options.seperator);
+            
         }
 
+        if (isDefined(parts)) {
+            str += o.prefix + parts.join(o.seperator);
+        }
         str += glues[pieceIndex + 1];
     }
-
     pieces.forEach(processPart)
-
-
     return str;
 };
 
 Object.assign(UriTemplate, {UriTemplate, UriTemplateClass, Router})
 
+
+function processVal(value, maxLength, encode) {
+    if (maxLength) value = value.substring(0, maxLength);
+    return encode(value);
+}
 
 function processValue(value, name, options) {
     if (!options.assignment) return value

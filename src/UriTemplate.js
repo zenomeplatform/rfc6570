@@ -295,72 +295,62 @@ function parse (str) {
 
 function stringify(data = {}) {
     const { pieces, glues } = this.data;
-
     var str = glues[0];
 
     function processPart(piece, pieceIndex) {
         var options = operatorOptions[piece.operator];
+        const variables = piece.variables;
 
-        var parts = piece.variables.map(function (variable) {
-            var value = data[variable.name];
+        const parts = variables.map(function (variable) {
+            const { name, composite, maxLength } = variable;
+            var value = data[name];
             if (!isArray(value)) value = [value];
             value = value.filter(isDefined);
             if (isUndefined(value)) return null;
 
-            if (variable.composite) {
-                value = value.map(function (value) {
+            if (composite) {
+                return value.map(function (value) {
 
-                    if (typeof value === 'object') {
-
-                        return Object.keys(value).map(function (key) {
-                            var keyValue = value[key];
-                            if (variable.maxLength) keyValue = keyValue.substring(0, variable.maxLength);
-
-                            keyValue = options.encode(keyValue);
-
-                            if (keyValue) keyValue = key + '=' + keyValue;
-                            else {
-                                keyValue = key;
-                                if (options.assignEmpty) keyValue += '=';
-                            }
-
-                            return keyValue;
-                        }).join(options.seperator);
-
-                    } else {
-                        if (variable.maxLength) value = value.substring(0, variable.maxLength);
+                    if (typeof value !== 'object') {
+                        if (maxLength) value = value.substring(0, maxLength);
                         value = options.encode(value);
-                        return processValue(value, variable, options);
+                        return processValue(value, name, options);
                     }
 
-                });
-
-                return value.join(options.seperator);
-            } 
-            
-            value = value.map(function (value) {
-                    if (typeof value === 'object') {
-                        return Object.keys(value).map(function (key) {
-                            var keyValue = value[key];
-                            if (variable.maxLength) keyValue = keyValue.substring(0, variable.maxLength);
-                            return key + ',' + options.encode(keyValue);
-                        }).join(',');
-                    } else {
-                        if (variable.maxLength) value = value.substring(0, variable.maxLength);
-                        return options.encode(value);
+                    function mapper([ key, val ]) {
+                        if (maxLength) val = val.substring(0, maxLength);
+                        return key + '=' + options.encode(val);
                     }
-            }).join(',');
 
-            return processValue(value, variable, options)
-        });
+                    return Object.entries(value).map(mapper).join(options.seperator);
 
-        parts = parts.filter(isDefined);
+                }).join(options.seperator);
+            }
+
+            function mapper(value) {
+                if (typeof value !== 'object') {
+                    if (maxLength) value = value.substring(0, maxLength);
+                    return options.encode(value);
+                }
+
+                function mapper([key, val]) {
+                    if (maxLength) val = val.substring(0, maxLength);
+                    return key + ',' + options.encode(val);
+                }
+
+                return Object.entries(value).map(mapper).join(',');
+            }
+
+
+            value = value.map(mapper).join(',');
+            return processValue(value, name, options)
+        }).filter(isDefined);
+
         if (isDefined(parts)) {
             str += options.prefix + parts.join(options.seperator);
         }
 
         str += glues[pieceIndex + 1];
-        return true;
     }
 
     pieces.forEach(processPart)
@@ -372,13 +362,9 @@ function stringify(data = {}) {
 Object.assign(UriTemplate, {UriTemplate, UriTemplateClass, Router})
 
 
-function processValue(value, variable, options) {
-    if (options.assignment) {
-        if (value) value = variable.name + '=' + value;
-        else {
-            value = variable.name;
-            if (options.assignEmpty) value += '=';
-        }
-    }
-    return value
+function processValue(value, name, options) {
+    if (!options.assignment) return value
+    if (value) return name + '=' + value;
+    if (options.assignEmpty) return name + '='
+    return name
 }

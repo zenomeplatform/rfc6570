@@ -1,76 +1,23 @@
 /* jshint node:true */
-
-module.exports = UriTemplate
-
-
 const isArray = Array.isArray;
 
 
-const operatorOptions = {
-    "": {
-        prefix: "",
-        seperator: ",",
-        assignment: false,
-        assignEmpty: false,
-        encode: percentEncode
-    },
-    "+": {
-        prefix: "",
-        seperator: ",",
-        assignment: false,
-        assignEmpty: false,
-        encode: encodeURI
-    },
-    "#": {
-        prefix: "#",
-        seperator: ",",
-        assignment: false,
-        assignEmpty: false,
-        encode: encodeURI
-    },
-    ".": {
-        prefix: ".",
-        seperator: ".",
-        assignment: false,
-        assignEmpty: false,
-        encode: percentEncode
-    },
-    "/": {
-        prefix: "/",
-        seperator: "/",
-        assignment: false,
-        assignEmpty: false,
-        encode: encodeURIComponent
-    },
-    ";": {
-        prefix: ";",
-        seperator: ";",
-        assignment: true,
-        assignEmpty: false,
-        encode: encodeURIComponent
-    },
-    "?": {
-        prefix: "?",
-        seperator: "&",
-        assignment: true,
-        assignEmpty: true,
-        encode: encodeURIComponent
-    },
-    "&": {
-        prefix: "&",
-        seperator: "&",
-        assignment: true,
-        assignEmpty: true,
-        encode: encodeURIComponent
-    }
-}
+const OPERATIONS = ({
+    "" : { prefix: "",  seperator: ",", assignment: false, assignEmpty: false, encode: percentEncode        },
+    "+": { prefix: "",  seperator: ",", assignment: false, assignEmpty: false, encode: encodeURI            },
+    "#": { prefix: "#", seperator: ",", assignment: false, assignEmpty: false, encode: encodeURI            },
+    ".": { prefix: ".", seperator: ".", assignment: false, assignEmpty: false, encode: percentEncode        },
+    "/": { prefix: "/", seperator: "/", assignment: false, assignEmpty: false, encode: encodeURIComponent   },
+    ";": { prefix: ";", seperator: ";", assignment: true,  assignEmpty: false, encode: encodeURIComponent   },
+    "?": { prefix: "?", seperator: "&", assignment: true,  assignEmpty: true,  encode: encodeURIComponent   },
+    "&": { prefix: "&", seperator: "&", assignment: true,  assignEmpty: true,  encode: encodeURIComponent   }
+})
 
 /* http://tools.ietf.org/html/rfc6570#section-2.3 */
 function isUndefined(value) {
     if (value === null) return true;
     if (value === undefined) return true;
-    if (Array.isArray(value) && value.length === 0) return true;
-
+    if (isArray(value) && value.length === 0) return true;
     return false;
 }
 
@@ -199,49 +146,6 @@ function startsWithConsume(string, prefix) {
     return string.slice(prefix.length)
 }
 
-class UriTemplateClass {
-
-    constructor(template) {
-        this.data = preprocessTemplate(template)
-    }
-    
-
-    parse() {
-        try {
-            return parse.apply(this, arguments);
-        } catch (error) {
-            return false;
-        }
-    }
-
-    stringify()  {
-        try {
-            return stringify.apply(this, arguments);
-        } catch (error) {
-            return false;
-        }
-    }
-}
-
-class Router {
-
-    constructor() {
-        this.routes = [];
-    }
-
-    add(template, handler) {
-        const compiled = new UriTemplateClass(template)
-        this.routes.push({ template: compiled, handler }); //
-    }
-
-    handle(url) {
-        return this.routes.some(function (route) {
-            var data = route.template.parse(url);
-            return data && route.handler(data) !== false;
-        });
-    }
-
-}
 
 function UriTemplate(template) {
     this.data = preprocessTemplate(template)
@@ -256,9 +160,6 @@ function UriTemplate(template) {
 }
 
 
-UriTemplate.UriTemplateClass = UriTemplateClass
-
-
 function parse (str) {
     const { pieces, glues } = this.data;
     const data = {},  offsets = getSegmentsOffsets(str, glues)
@@ -266,7 +167,7 @@ function parse (str) {
     return data;
 
     function processFrag({ operator, variables }, i) {
-        const { prefix, seperator, assignment, assignEmpty } = operatorOptions[operator];
+        const { prefix, seperator, assignment, assignEmpty } = OPERATIONS[operator];
 
         let value = getValuePart(str, i, glues, offsets)
         if (value.length === 0) return true;
@@ -289,8 +190,6 @@ function parse (str) {
             data[name] = decodeURIComponent(val);
         }
     }
-
-    
 }
 
 
@@ -300,33 +199,37 @@ function stringify(data = {}) {
     return glues[0] + pieces.map((x,i) => processPart(x) + glues[i+1]).join("");
 
     function processPart({ operator, variables }) {
-        const o = operatorOptions[operator];
+        const o = OPERATIONS[operator];
         const parts = variables.map(x => procVariable(x, o)).filter(isDefined);
         if (!isDefined(parts)) return ""
         return o.prefix + parts.join(o.seperator)
     }
 
     function procVariable ({ name, composite, maxLength }, o) {
-        var value = data[name];
-        if (!isArray(value)) value = [value];
-        value = value.filter(isDefined);
-        if (isUndefined(value)) return null;
+        var prop = data[name];
+        if (!isArray(prop)) prop = [prop];
+        prop = prop.filter(isDefined);
+        if (isUndefined(prop)) return null;
 
-        if (!composite) return processValue(value.map(mapper).join(','), name, o)
-
-        return value.map(mapper2).join(o.seperator);
-        
-        function mapper2 (v) {
-            if (typeof v !== 'object') {
-                v = processVal(v, maxLength, o.encode)
-                return processValue(v, name, o);
-            }
-            const mapper = ([key, val]) => key + '=' + processVal(val, maxLength, o.encode);
-            return Object.entries(v).map(mapper).join(o.seperator);
+        if (!composite) {
+            const value = prop.map(compositemapper).join(',')
+            return processValue(value, name, o)
         }
 
-        function mapper(value) {
-            if (typeof value !== 'object') return processVal(value, maxLength, o.encode);
+        return prop.map(mapper).join(o.seperator);
+        
+        function mapper (value) {
+            if (typeof value !== 'object') {
+                return processValue(value, name, o);
+            }
+            const mapper = ([key, val]) => key + '=' + processVal(val, maxLength, o.encode);
+            return Object.entries(value).map(mapper).join(o.seperator);
+        }
+
+        function compositemapper(value) {
+            if (typeof value !== 'object') {
+                return processVal(value, maxLength, o.encode);
+            }
             const mapper = ([key, val]) => key + ',' + processVal(val, maxLength, o.encode);
             return Object.entries(value).map(mapper).join(',');
         }
@@ -335,7 +238,6 @@ function stringify(data = {}) {
 
 };
 
-Object.assign(UriTemplate, {UriTemplate, UriTemplateClass, Router})
 
 
 function processVal(value, maxLength, encode) {
@@ -349,3 +251,27 @@ function processValue(value, name, options) {
     if (options.assignEmpty) return name + '='
     return name
 }
+
+module.exports = UriTemplate
+
+class Router {
+
+    constructor() {
+        this.routes = [];
+    }
+
+    add(template, handler) {
+        const compiled = new UriTemplate(template)
+        this.routes.push({ template: compiled, handler }); //
+    }
+
+    handle(url) {
+        return this.routes.some(function (route) {
+            var data = route.template.parse(url);
+            return data && route.handler(data) !== false;
+        });
+    }
+
+}
+
+Object.assign(UriTemplate, {UriTemplate, Router})

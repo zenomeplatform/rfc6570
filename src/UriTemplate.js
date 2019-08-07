@@ -262,33 +262,35 @@ UriTemplate.UriTemplateClass = UriTemplateClass
 function parse (str) {
     const { pieces, glues } = this.data;
     const data = {},  offsets = getSegmentsOffsets(str, glues)
+    pieces.forEach(processFrag)
+    return data;
 
-    pieces.forEach(function ({ operator, variables }, pieceIndex) {
+    function processFrag({ operator, variables }, i) {
         const { prefix, seperator, assignment, assignEmpty } = operatorOptions[operator];
 
-        let value = getValuePart(str, pieceIndex, glues, offsets)
+        let value = getValuePart(str, i, glues, offsets)
         if (value.length === 0) return true;
 
         value = startsWithConsume(value, prefix);
         const values = value.split(seperator);
 
-        for (let variableIndex in variables) {
-            let variable = variables[variableIndex];
-            let value    = values   [variableIndex];
-            if (value === undefined) break;
+        for (let j in variables) {
+            let name = variables[j].name
+            let val  = values   [j];
+            if (val === undefined) break;
 
             if (assignment) {
-                value = startsWithConsume(value, variable.name)
-                if (value.length === 0 && assignEmpty) throw new Error(null)
-                if (value.length > 0) {
-                    value = startsWithConsume(value, "=")
+                val = startsWithConsume(val, name)
+                if (val.length === 0 && assignEmpty) throw new Error(null)
+                if (val.length > 0) {
+                    val = startsWithConsume(val, "=")
                 }
             }
-            data[variable.name] = decodeURIComponent(value);
+            data[name] = decodeURIComponent(val);
         }
-    })
+    }
 
-    return data;
+    
 }
 
 
@@ -297,11 +299,8 @@ function stringify(data = {}) {
     const { pieces, glues } = this.data;
     var str = glues[0];
 
-    function processPart(piece, pieceIndex) {
-        const operator = piece.operator
-        const variables = piece.variables;
-        var o = operatorOptions[operator];
-
+    function processPart({ operator, variables }, pieceIndex) {
+        const o = operatorOptions[operator];
         const parts = variables.map(procVariable).filter(isDefined);
 
         function procVariable ({ name, composite, maxLength }) {

@@ -234,17 +234,12 @@ function UriTemplate(template) {
     }
 
 
-function stringify (data) {
-        var str = '';
-        data = data || {};
+function stringify (data = {}) {
+        var str = glues[0];
 
-        str += glues[0];
-        if (!pieces.every(function (piece, pieceIndex) {
-
+        function processPart(piece, pieceIndex) {
             var options = operatorOptions[piece.operator];
-            var parts;
-
-            parts = piece.variables.map(function (variable) {
+            var parts = piece.variables.map(function (variable) {
                 var value = data[variable.name];
 
                 if (!Array.isArray(value)) value = [value];
@@ -329,7 +324,10 @@ function stringify (data) {
 
             str += glues[pieceIndex + 1];
             return true;
-        })) return false;
+        }
+
+        pieces.forEach(processPart)
+
 
         return str;
     };

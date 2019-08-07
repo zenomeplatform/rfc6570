@@ -1,6 +1,6 @@
 /* jshint node:true */
 
-module.exports = UriTemplate;
+module.exports = UriTemplate
 
 
 const operatorOptions = {
@@ -196,142 +196,52 @@ function startsWithConsume(string, prefix) {
     return string.slice(prefix.length)
 }
 
+class UriTemplateClass {
 
-function UriTemplate(template) {
-    const { pieces, glues } = preprocessTemplate(template)
+    constructor(template) {
+        this.data = preprocessTemplate(template)
+    }
+    
 
-    function parse (str) {
-        const data = {},  offsets = getSegmentsOffsets(str, glues)
-
-        pieces.forEach(function ({ operator, variables }, pieceIndex) {
-            const { prefix, seperator, assignment, assignEmpty } = operatorOptions[operator];
-
-            let value = getValuePart(str, pieceIndex, glues, offsets)
-            if (value.length === 0) return true;
-
-            value = startsWithConsume(value, prefix);
-            const values = value.split(seperator);
-
-            for (let variableIndex in variables) {
-                let variable = variables[variableIndex];
-                let value    = values   [variableIndex];
-                if (value === undefined) break;
-
-                if (assignment) {
-                    value = startsWithConsume(value, variable.name)
-                    if (value.length === 0 && assignEmpty) throw new Error(null)
-                    if (value.length > 0) {
-                        value = startsWithConsume(value, "=")
-                    }
-                }
-                data[variable.name] = decodeURIComponent(value);
-            }
-
-
-        })
-
-        return data;
+    parse() {
+        try {
+            return parse.apply(this, arguments);
+        } catch (error) {
+            return false;
+        }
     }
 
-
-function stringify (data = {}) {
-        var str = glues[0];
-
-        function processPart(piece, pieceIndex) {
-            var options = operatorOptions[piece.operator];
-            var parts = piece.variables.map(function (variable) {
-                var value = data[variable.name];
-
-                if (!Array.isArray(value)) value = [value];
-
-                value = value.filter(isDefined);
-
-                if (isUndefined(value)) return null;
-
-                if (variable.composite) {
-                    value = value.map(function (value) {
-
-                        if (typeof value === 'object') {
-
-                            value = Object.keys(value).map(function (key) {
-                                var keyValue = value[key];
-                                if (variable.maxLength) keyValue = keyValue.substring(0, variable.maxLength);
-
-                                keyValue = options.encode(keyValue);
-
-                                if (keyValue) keyValue = key + '=' + keyValue;
-                                else {
-                                    keyValue = key;
-                                    if (options.assignEmpty) keyValue += '=';
-                                }
-
-                                return keyValue;
-                            }).join(options.seperator);
-
-                        } else {
-                            if (variable.maxLength) value = value.substring(0, variable.maxLength);
-
-                            value = options.encode(value);
-
-                            if (options.assignment) {
-                                if (value) value = variable.name + '=' + value;
-                                else {
-                                    value = variable.name;
-                                    if (options.assignEmpty) value += '=';
-                                }
-                            }
-                        }
-
-                        return value;
-                    });
-
-                    value = value.join(options.seperator);
-                } else {
-                    value = value.map(function (value) {
-                        if (typeof value === 'object') {
-                            return Object.keys(value).map(function (key) {
-                                var keyValue = value[key];
-                                if (variable.maxLength) keyValue = keyValue.substring(0, variable.maxLength);
-                                return key + ',' + options.encode(keyValue);
-                            }).join(',');
-                        } else {
-                            if (variable.maxLength) value = value.substring(0, variable.maxLength);
-
-                            return options.encode(value);
-                        }
-
-                    });
-                    value = value.join(',');
-
-                    if (options.assignment) {
-                        if (value) value = variable.name + '=' + value;
-                        else {
-                            value = variable.name;
-                            if (options.assignEmpty) value += '=';
-                        }
-                    }
-
-                }
-
-                return value;
-            });
-
-            parts = parts.filter(isDefined);
-            if (isDefined(parts)) {
-                str += options.prefix + parts.join(options.seperator);
-            }
-
-            str += glues[pieceIndex + 1];
-            return true;
+    stringify()  {
+        try {
+            return stringify.apply(this, arguments);
+        } catch (error) {
+            return false;
         }
+    }
+}
 
-        pieces.forEach(processPart)
+class Router {
 
+    constructor() {
+        this.routes = [];
+    }
 
-        return str;
-    };
+    add(template, handler) {
+        const compiled = new UriTemplateClass(template)
+        this.routes.push({ template: compiled, handler }); //
+    }
 
+    handle(url) {
+        return this.routes.some(function (route) {
+            var data = route.template.parse(url);
+            return data && route.handler(data) !== false;
+        });
+    }
 
+}
+
+function UriTemplate(template) {
+    this.data = preprocessTemplate(template)
     this.parse = function() {
         try {
             return parse.apply(this, arguments);
@@ -340,4 +250,142 @@ function stringify (data = {}) {
         }
     }
     this.stringify = stringify;
-} //UriTemplate
+}
+
+
+UriTemplate.UriTemplateClass = UriTemplateClass
+
+
+function parse (str) {
+    const { pieces, glues } = this.data;
+    const data = {},  offsets = getSegmentsOffsets(str, glues)
+
+    pieces.forEach(function ({ operator, variables }, pieceIndex) {
+        const { prefix, seperator, assignment, assignEmpty } = operatorOptions[operator];
+
+        let value = getValuePart(str, pieceIndex, glues, offsets)
+        if (value.length === 0) return true;
+
+        value = startsWithConsume(value, prefix);
+        const values = value.split(seperator);
+
+        for (let variableIndex in variables) {
+            let variable = variables[variableIndex];
+            let value    = values   [variableIndex];
+            if (value === undefined) break;
+
+            if (assignment) {
+                value = startsWithConsume(value, variable.name)
+                if (value.length === 0 && assignEmpty) throw new Error(null)
+                if (value.length > 0) {
+                    value = startsWithConsume(value, "=")
+                }
+            }
+            data[variable.name] = decodeURIComponent(value);
+        }
+    })
+
+    return data;
+}
+
+
+function stringify (data = {}) {
+    const { pieces, glues } = this.data;
+
+    var str = glues[0];
+
+    function processPart(piece, pieceIndex) {
+        var options = operatorOptions[piece.operator];
+        var parts = piece.variables.map(function (variable) {
+            var value = data[variable.name];
+
+            if (!Array.isArray(value)) value = [value];
+
+            value = value.filter(isDefined);
+
+            if (isUndefined(value)) return null;
+
+            if (variable.composite) {
+                value = value.map(function (value) {
+
+                    if (typeof value === 'object') {
+
+                        value = Object.keys(value).map(function (key) {
+                            var keyValue = value[key];
+                            if (variable.maxLength) keyValue = keyValue.substring(0, variable.maxLength);
+
+                            keyValue = options.encode(keyValue);
+
+                            if (keyValue) keyValue = key + '=' + keyValue;
+                            else {
+                                keyValue = key;
+                                if (options.assignEmpty) keyValue += '=';
+                            }
+
+                            return keyValue;
+                        }).join(options.seperator);
+
+                    } else {
+                        if (variable.maxLength) value = value.substring(0, variable.maxLength);
+
+                        value = options.encode(value);
+
+                        if (options.assignment) {
+                            if (value) value = variable.name + '=' + value;
+                            else {
+                                value = variable.name;
+                                if (options.assignEmpty) value += '=';
+                            }
+                        }
+                    }
+
+                    return value;
+                });
+
+                value = value.join(options.seperator);
+            } else {
+                value = value.map(function (value) {
+                    if (typeof value === 'object') {
+                        return Object.keys(value).map(function (key) {
+                            var keyValue = value[key];
+                            if (variable.maxLength) keyValue = keyValue.substring(0, variable.maxLength);
+                            return key + ',' + options.encode(keyValue);
+                        }).join(',');
+                    } else {
+                        if (variable.maxLength) value = value.substring(0, variable.maxLength);
+
+                        return options.encode(value);
+                    }
+
+                });
+                value = value.join(',');
+
+                if (options.assignment) {
+                    if (value) value = variable.name + '=' + value;
+                    else {
+                        value = variable.name;
+                        if (options.assignEmpty) value += '=';
+                    }
+                }
+
+            }
+
+            return value;
+        });
+
+        parts = parts.filter(isDefined);
+        if (isDefined(parts)) {
+            str += options.prefix + parts.join(options.seperator);
+        }
+
+        str += glues[pieceIndex + 1];
+        return true;
+    }
+
+    pieces.forEach(processPart)
+
+
+    return str;
+};
+
+Object.assign(UriTemplate, {UriTemplate, UriTemplateClass, Router})

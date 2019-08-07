@@ -3,6 +3,9 @@
 module.exports = UriTemplate
 
 
+const isArray = Array.isArray;
+
+
 const operatorOptions = {
     "": {
         prefix: "",
@@ -289,20 +292,19 @@ function parse (str) {
 }
 
 
-function stringify (data = {}) {
+
+function stringify(data = {}) {
     const { pieces, glues } = this.data;
 
     var str = glues[0];
 
     function processPart(piece, pieceIndex) {
         var options = operatorOptions[piece.operator];
+
         var parts = piece.variables.map(function (variable) {
             var value = data[variable.name];
-
-            if (!Array.isArray(value)) value = [value];
-
+            if (!isArray(value)) value = [value];
             value = value.filter(isDefined);
-
             if (isUndefined(value)) return null;
 
             if (variable.composite) {
@@ -310,7 +312,7 @@ function stringify (data = {}) {
 
                     if (typeof value === 'object') {
 
-                        value = Object.keys(value).map(function (key) {
+                        return Object.keys(value).map(function (key) {
                             var keyValue = value[key];
                             if (variable.maxLength) keyValue = keyValue.substring(0, variable.maxLength);
 
@@ -327,24 +329,16 @@ function stringify (data = {}) {
 
                     } else {
                         if (variable.maxLength) value = value.substring(0, variable.maxLength);
-
                         value = options.encode(value);
-
-                        if (options.assignment) {
-                            if (value) value = variable.name + '=' + value;
-                            else {
-                                value = variable.name;
-                                if (options.assignEmpty) value += '=';
-                            }
-                        }
+                        return processValue(value, variable, options);
                     }
 
-                    return value;
                 });
 
-                value = value.join(options.seperator);
-            } else {
-                value = value.map(function (value) {
+                return value.join(options.seperator);
+            } 
+            
+            value = value.map(function (value) {
                     if (typeof value === 'object') {
                         return Object.keys(value).map(function (key) {
                             var keyValue = value[key];
@@ -353,24 +347,11 @@ function stringify (data = {}) {
                         }).join(',');
                     } else {
                         if (variable.maxLength) value = value.substring(0, variable.maxLength);
-
                         return options.encode(value);
                     }
+            }).join(',');
 
-                });
-                value = value.join(',');
-
-                if (options.assignment) {
-                    if (value) value = variable.name + '=' + value;
-                    else {
-                        value = variable.name;
-                        if (options.assignEmpty) value += '=';
-                    }
-                }
-
-            }
-
-            return value;
+            return processValue(value, variable, options)
         });
 
         parts = parts.filter(isDefined);
@@ -389,3 +370,15 @@ function stringify (data = {}) {
 };
 
 Object.assign(UriTemplate, {UriTemplate, UriTemplateClass, Router})
+
+
+function processValue(value, variable, options) {
+    if (options.assignment) {
+        if (value) value = variable.name + '=' + value;
+        else {
+            value = variable.name;
+            if (options.assignEmpty) value += '=';
+        }
+    }
+    return value
+}

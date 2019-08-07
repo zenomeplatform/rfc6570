@@ -203,8 +203,7 @@ function UriTemplate(template) {
         const offsets = getSegmentsOffsets(str, glues)
         if (!offsets) return false
 
-        var data = {};
-
+        var data = {}
 
         if (!pieces.every(function (piece, pieceIndex) {
             const { prefix, seperator, assignment, assignEmpty } = operatorOptions[piece.operator];
@@ -212,12 +211,12 @@ function UriTemplate(template) {
             let value = getValuePart(str, pieceIndex, glues, offsets)
             if (value.length === 0) return true;
             if (!value.startsWith(prefix)) return false;
-            let values = value.slice(prefix.length).split(seperator);
+            const values = value.slice(prefix.length).split(seperator);
+            const variables = piece.variables;
 
-
-            for (let variableIndex in piece.variables) {
-                let variable = piece.variables[variableIndex];
-                let value    = values         [variableIndex];
+            for (let variableIndex in variables) {
+                let variable = variables[variableIndex];
+                let value    = values   [variableIndex];
 
                 if (value === undefined) return true;
                 if (assignment) {

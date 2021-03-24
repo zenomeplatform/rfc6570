@@ -1,7 +1,3 @@
-/* jshint node:true */
-const isArray = Array.isArray;
-
-
 const OPERATIONS = ({
     "" : { prefix: "",  seperator: ",", assignment: false, assignEmpty: false, encode: percentEncode        },
     "+": { prefix: "",  seperator: ",", assignment: false, assignEmpty: false, encode: encodeURI            },
@@ -17,7 +13,7 @@ const OPERATIONS = ({
 function isUndefined(value) {
     if (value === null) return true;
     if (value === undefined) return true;
-    if (isArray(value) && value.length === 0) return true;
+    if (Array.isArray(value) && value.length === 0) return true;
     return false;
 }
 
@@ -207,7 +203,7 @@ function stringify(data = {}) {
 
     function procVariable ({ name, composite, maxLength }, o) {
         var prop = data[name];
-        if (!isArray(prop)) prop = [prop];
+        if (!Array.isArray(prop)) prop = [prop];
         prop = prop.filter(isDefined);
         if (isUndefined(prop)) return null;
 
